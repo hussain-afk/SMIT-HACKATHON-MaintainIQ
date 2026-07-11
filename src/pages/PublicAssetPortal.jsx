@@ -60,7 +60,7 @@ function HistoryItem({ issue }) {
         <p className="text-sm text-gray-300">{issue.description}</p>
         <div className="flex items-center gap-3 mt-1">
           <span className="text-xs text-gray-500">
-            {issue.reportedAt ? new Date(issue.reportedAt.seconds * 1000).toLocaleDateString() : 'Recently'}
+            {issue.reportedAt?.seconds ? new Date(issue.reportedAt.seconds * 1000).toLocaleDateString() : 'Recently'}
           </span>
           <span className={`text-xs font-medium`} style={{ color }}>
             {issue.status}
@@ -81,6 +81,7 @@ export default function PublicAssetPortal() {
   const [evidenceFile, setEvidenceFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Fetch asset data
   useEffect(() => {
@@ -132,39 +133,57 @@ export default function PublicAssetPortal() {
     e.preventDefault();
     if (!description.trim()) return;
     setSubmitting(true);
+    setErrorMsg('');
     try {
-      let finalEvidenceUrl = null;
+      // Force a timeout so it never hangs forever (10 seconds max)
+      await Promise.race([
+        new Promise(async (resolve, reject) => {
+          try {
+            let finalEvidenceUrl = null;
 
-      // Handle file upload
-      if (evidenceFile) {
-        const fileRef = ref(storage, `evidence/${Date.now()}_${evidenceFile.name}`);
-        const snapshot = await uploadBytes(fileRef, evidenceFile);
-        finalEvidenceUrl = await getDownloadURL(snapshot.ref);
-      }
+            if (evidenceFile) {
+              const fileRef = ref(storage, `evidence/${Date.now()}_${evidenceFile.name}`);
+              const snapshot = await uploadBytes(fileRef, evidenceFile);
+              finalEvidenceUrl = await getDownloadURL(snapshot.ref);
+            }
 
-      // Mock AI classification
-      const priority = analyzePriority(description);
+            const priority = analyzePriority(description);
 
-      await addDoc(collection(db, 'issues'), {
-        assetId,
-        description: description.trim(),
-        evidenceUrl: finalEvidenceUrl,
-        priority, // The AI-determined priority
-        status: 'Open',
-        technicianNotes: [],
-        reportedAt: serverTimestamp(),
-      });
-      await addDoc(collection(db, 'activityLog'), {
-        action: `New issue reported for asset "${asset?.name || assetId}" (AI Priority: ${priority})`,
-        type: 'issue',
-        timestamp: serverTimestamp(),
-      });
+            await addDoc(collection(db, 'issues'), {
+              assetId,
+              description: description.trim(),
+              evidenceUrl: finalEvidenceUrl,
+              priority,
+              status: 'Open',
+              technicianNotes: [],
+              reportedAt: serverTimestamp(),
+            });
+
+            await addDoc(collection(db, 'activityLog'), {
+              action: `New issue reported for asset "${asset?.name || assetId}" (AI Priority: ${priority})`,
+              type: 'issue',
+              timestamp: serverTimestamp(),
+            });
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out. Please check your internet connection or Firebase Rules.')), 10000))
+      ]);
+
       setDescription('');
       setEvidenceFile(null);
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 4000);
     } catch (err) {
       console.error('Failed to submit report:', err);
+      // Firebase specific permission error
+      if (err.code === 'permission-denied' || err.message.includes('permission')) {
+        setErrorMsg('Permission Denied: You need to update your Firebase Firestore or Storage rules to allow public writes.');
+      } else {
+        setErrorMsg(err.message || 'Failed to submit report. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -289,6 +308,16 @@ export default function PublicAssetPortal() {
             <div className="mb-4 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm flex items-center gap-2">
               <CheckCircle2 size={16} />
               Report submitted successfully! A technician will review it shortly.
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex flex-col gap-1">
+              <div className="flex items-center gap-2 font-semibold">
+                <AlertTriangle size={16} />
+                Submission Failed
+              </div>
+              <p>{errorMsg}</p>
             </div>
           )}
 

@@ -6,6 +6,11 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  deleteDoc,
+  doc,
+  updateDoc,
+  getDocs,
+  where,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import Modal from '../components/Modal';
@@ -22,6 +27,7 @@ import {
   Filter,
   QrCode,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 
 const CATEGORIES = ['Electronics', 'Machinery', 'Furniture', 'Vehicles', 'HVAC', 'Plumbing', 'Other'];
@@ -64,19 +70,43 @@ function AssetCard({ asset }) {
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
+  const handleDelete = async () => {
+    if (window.confirm(`Are you sure you want to delete "${asset.name}"? This action cannot be undone.`)) {
+      try {
+        await deleteDoc(doc(db, 'assets', asset.id));
+        
+        // Cascade delete associated issues
+        const q = query(collection(db, 'issues'), where('assetId', '==', asset.id));
+        const snap = await getDocs(q);
+        snap.forEach((d) => deleteDoc(doc(db, 'issues', d.id)));
+      } catch (err) {
+        console.error('Failed to delete asset:', err);
+      }
+    }
+  };
+
   return (
-    <div className="rounded-2xl bg-[#1C2541]/60 backdrop-blur-md border border-[#3A506B]/40 p-5 hover:border-[#4CC9F0]/30 transition-all duration-300 group hover:shadow-lg hover:shadow-[#4CC9F0]/5">
+    <div className="rounded-2xl bg-[#1C2541]/60 backdrop-blur-md border border-[#3A506B]/40 p-5 hover:border-[#4CC9F0]/30 transition-all duration-300 group hover:shadow-lg hover:shadow-[#4CC9F0]/5 flex flex-col h-full">
       <div className="flex items-start justify-between mb-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4CC9F0]/20 to-[#4361EE]/20 flex items-center justify-center">
           <Package size={20} className="text-[#4CC9F0]" />
         </div>
-        <span
-          className={`text-xs px-2.5 py-1 rounded-full border font-medium ${
-            statusColors[asset.status] || statusColors.Active
-          }`}
-        >
-          {asset.status || 'Active'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full border font-medium ${
+              statusColors[asset.status] || statusColors.Active
+            }`}
+          >
+            {asset.status || 'Active'}
+          </span>
+          <button
+            onClick={handleDelete}
+            title="Delete Asset"
+            className="text-gray-500 hover:text-red-400 transition-colors p-1"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
 
       <h3 className="text-white font-semibold text-base mb-2 group-hover:text-[#4CC9F0] transition-colors">
@@ -178,8 +208,7 @@ export default function AssetManagement() {
       const qrCodeUrl = `${window.location.origin}/public/asset/${docRef.id}`;
 
       // Update the doc with the generated public URL
-      const { doc: firestoreDoc, updateDoc } = await import('firebase/firestore');
-      await updateDoc(firestoreDoc(db, 'assets', docRef.id), { qrCodeUrl });
+      await updateDoc(doc(db, 'assets', docRef.id), { qrCodeUrl });
 
       // Log the activity
       await addDoc(collection(db, 'activityLog'), {

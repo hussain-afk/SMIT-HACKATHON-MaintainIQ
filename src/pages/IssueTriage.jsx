@@ -117,7 +117,7 @@ function IssueRow({ issue }) {
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
             Asset: {issue.assetId?.slice(0, 8)}... •{' '}
-            {issue.reportedAt
+            {issue.reportedAt?.seconds
               ? new Date(issue.reportedAt.seconds * 1000).toLocaleDateString()
               : 'Unknown date'}
           </p>
