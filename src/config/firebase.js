@@ -8,7 +8,7 @@ import { getFirestore, doc, setDoc, getDoc,collection, addDoc, getDocs, deleteDo
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAaTitdSAsjve_k5hMPi2E54eo7Jl_EV_w",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "realtime-todo-a97e3.firebaseapp.com",
   databaseURL: "https://realtime-todo-a97e3-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "realtime-todo-a97e3",
