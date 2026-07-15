@@ -1,378 +1,400 @@
-import React, { useEffect, useState } from 'react';
-import Modal from '../../components/Modal'; // Adjust this path if needed
-import AdminAssetCard from '../../components/adminCard'; // Adjust this path if needed
-import { db, addDoc, collection, getDocs, doc, updateDoc, deleteDoc } from '../../config/firebase';
-import { useDispatch, useSelector } from 'react-redux';
-import { addAsset, updateAssetStatus } from '../../redux/reducers/assetSlice'; // Ensure updateAssetStatus exists in your slice
-import { Plus, BarChart3, ShieldCheck, Activity, Package, ClipboardList, Check, X } from 'lucide-react';
+import React, { useEffect, useState, useContext } from 'react';
+import { db, collection, getDocs, addDoc, signOut, auth, doc, updateDoc, deleteDoc } from '../../config/firebase';
+import AdminAssetCard from '../../components/adminCard';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import { ShieldCheck, Search, LayoutGrid, Wrench, AlertCircle, LogOut, Plus, PackageOpen, UserCheck, Check, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { StoreContext } from '../../context/Store';
 
-function Dashboard() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+function AdminDashboard() {
+  const navigate = useNavigate();
+  const { setUser, photoURL } = useContext(StoreContext);
+
+  // --- States ---
+  const [assets, setAssets] = useState([]);
   const [handoverRequests, setHandoverRequests] = useState([]);
-  
-  // State for form fields
-  const [assetName, setAssetName] = useState('');
-  const [assetCategory, setAssetCategory] = useState('machinery');
-  const [serialNumber, setSerialNumber] = useState('');
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState('active');
-  
-  // Redux
-  const dispatch = useDispatch();
-  const assets = useSelector((state) => state.asset.assets || []);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // 1. Calculate dynamic statistics parameters
-  const totalAssets = assets.length;
-  const activeAssets = assets.filter(a => a.status?.toLowerCase() === 'active' || a.isActive === 'active').length;
-  const maintenanceAssets = assets.filter(a => a.status?.toLowerCase() === 'maintenance').length;
+  // New Asset Form State
+  const [newAsset, setNewAsset] = useState({
+    assetName: '',
+    assetCategory: 'machinery',
+    serialNumber: '',
+    description: '',
+  });
 
-  // 2. Fetch Assets and Tech Handover Requests from Firestore
-  async function fetchDashboardData() {
+  // --- 1. Load Data from Firebase ---
+  const loadData = async () => {
+    setIsLoading(true);
     try {
       // Fetch Assets
-      const assetSnapshot = await getDocs(collection(db, "assets"));
-      assetSnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
+      const assetsSnapshot = await getDocs(collection(db, "assets"));
+      const assetsList = [];
+      assetsSnapshot.forEach((doc) => {
+        const data = doc.data();
         if (data.createdAt && typeof data.createdAt.toDate === 'function') {
           data.createdAt = data.createdAt.toDate().toISOString();
         }
-        dispatch(addAsset({ id: docSnap.id, ...data }));
+        assetsList.push({ id: doc.id, ...data });
       });
+      setAssets(assetsList);
+      console.log("Assets loaded:", assetsList);
+      console.log(assets);
 
-      // Fetch Pending Technician Handover Tickets
-      const requestSnapshot = await getDocs(collection(db, "handover_requests"));
-      const requestsList = [];
-      requestSnapshot.forEach((docSnap) => {
-        requestsList.push({ id: docSnap.id, ...docSnap.data() });
+      // Fetch Handover Requests
+      const requestsSnapshot = await getDocs(collection(db, "handover_requests"));
+      const reqList = [];
+      requestsSnapshot.forEach((doc) => {
+        reqList.push({ id: doc.id, ...doc.data() });
       });
-      setHandoverRequests(requestsList);
+      setHandoverRequests(reqList);
 
     } catch (error) {
-      console.error("Error loading administration terminal cluster matrix:", error);
+      console.error("Error loading data:", error);
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchDashboardData();
+    loadData();
   }, []);
 
-  // 3. Handle Creation of New Assets
-  const handleRegisterAsset = async (e) => {
-    e.preventDefault();
+  // --- 2. Approve Handover ---
+  const handleApproveRequest = async (request) => {
     try {
-      const assetData = {
-        assetName,
-        assetCategory,
-        serialNumber,
-        description,
-        status,
-        createdAt: new Date().toISOString()
-      };
-
-      const docRef = await addDoc(collection(db, "assets"), assetData);
-      dispatch(addAsset({ id: docRef.id, ...assetData }));
-      
-      setIsModalOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error("Error writing document registry asset:", error);
-    }
-  };
-
-  // 4. Handle Handover Approvals from Technicians
-  // 4. Handle Handover Approvals from Technicians
-  const handleApproveHandover = async (request) => {
-    try {
-      // Step A: Update status and set assigning targets in Firestore
+      // 1. Firebase mein status update karein
       const assetRef = doc(db, "assets", request.assetId);
-      await updateDoc(assetRef, { 
-        status: 'maintenance',
-        assignedTo: request.techName 
-      });
+      await updateDoc(assetRef, { status: "maintenance" });
 
-      // Step B: Delete request from handover queue collection
+      // 2. Local State update karein (Redux ke bina)
+      setAssets(prev => prev.map(asset =>
+        asset.id === request.assetId ? { ...asset, status: "maintenance" } : asset
+      ));
+
+      // 3. Request delete Method
       await deleteDoc(doc(db, "handover_requests", request.id));
-
-      // Step C: Update local UI states for the request cards
       setHandoverRequests(prev => prev.filter(r => r.id !== request.id));
 
-      // Step D: Re-fetch assets directly so Redux updates and statistics update live!
-      const assetSnapshot = await getDocs(collection(db, "assets"));
-      assetSnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-          data.createdAt = data.createdAt.toDate().toISOString();
-        }
-        dispatch(addAsset({ id: docSnap.id, ...data }));
-      });
+      alert("Handover Request Approved!");
+    } catch (err) {
+      console.error("Approval error:", err);
+    }
+  };
 
-      alert(`Asset tracking authorization successfully handed over to ${request.techName}!`);
+  // --- 3. Reject Handover ---
+  const handleRejectRequest = async (request) => {
+    try {
+      // 1. Status ko active par wapas set karein
+      const assetRef = doc(db, "assets", request.assetId);
+      await updateDoc(assetRef, { status: "active" });
+
+      // 2. Local State update karein
+      setAssets(prev => prev.map(asset =>
+        asset.id === request.assetId ? { ...asset, status: "active" } : asset
+      ));
+
+      // 3. Request list se delete karein
+      await deleteDoc(doc(db, "handover_requests", request.id));
+      setHandoverRequests(prev => prev.filter(r => r.id !== request.id));
+
+      alert("Handover Request Rejected.");
+    } catch (err) {
+      console.error("Rejection error:", err);
+    }
+  };
+
+  // --- 4. Add New Asset ---
+  const handleAddAsset = async (e) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!newAsset.assetName.trim() || !newAsset.serialNumber.trim()) {
+      setFormError('Please fill in asset name and serial number.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = {
+        ...newAsset,
+        status: 'active',
+        notes: '',
+        createdAt: new Date().toISOString(),
+      };
+
+      // Firebase mein add karein
+      const docRef = await addDoc(collection(db, 'assets'), payload);
+
+      // State mein direct add karein
+      setAssets(prev => [...prev, { id: docRef.id, ...payload }]);
+
+      // Form reset aur modal close
+      setNewAsset({ assetName: '', assetCategory: 'machinery', serialNumber: '', description: '' });
+      setIsAddModalOpen(false);
     } catch (error) {
-      console.error("Critical handover confirmation execution fault:", error);
+      console.error('Error adding asset:', error);
+      setFormError('Could not save asset. Try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // 5. Handle Handover Rejections
-  const handleRejectHandover = async (requestId) => {
-    if (window.confirm("Are you sure you want to decline this technician's handover claim?")) {
-      try {
-        await deleteDoc(doc(db, "handover_requests", requestId));
-        setHandoverRequests(prev => prev.filter(r => r.id !== requestId));
-      } catch (error) {
-        console.error("Error removing request node component registry entry:", error);
-      }
-    }
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null);
+    navigate('/');
   };
 
-  const resetForm = () => {
-    setAssetName('');
-    setAssetCategory('machinery');
-    setSerialNumber('');
-    setDescription('');
-    setStatus('active');
-  };
+  // --- Search & Metrics Calculations ---
+  const filteredAssets = assets.filter(asset =>
+    asset.assetName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    asset.serialNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    asset.assetCategory?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const totalCount = assets.length;
+  const maintenanceCount = assets.filter(a => a.status?.toLowerCase() === 'maintenance').length;
+  const faultCount = assets.filter(a => a.status?.toLowerCase() === 'inactive').length;
 
   return (
-    <>
-      <div className="min-h-screen bg-[#0B132B] text-slate-100 p-6 lg:p-10 font-sans">
-        <div className="max-w-7xl mx-auto space-y-8">
-          
-          {/* Header Action Bar */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#1C2541]/40 border border-[#3A506B]/30 p-6 rounded-2xl backdrop-blur-md">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-slate-100">
-                Administration Control Center
-              </h1>
-              <p className="text-xs lg:text-sm text-slate-400 mt-1">
-                Real-time tracking, hardware registers, and deployment status parameters.
-              </p>
+    <div className="min-h-screen bg-[#0B132B] text-slate-100 p-6 lg:p-10 font-sans">
+      <div className="max-w-7xl mx-auto space-y-8">
+
+        {/* Top Header Panel */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#3A506B]/30 pb-6">
+          <div>
+            <div className="flex items-center gap-2 text-[#4CC9F0]">
+              <ShieldCheck size={18} />
+              <span className="text-xs font-bold uppercase tracking-widest">Admin Portal</span>
             </div>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-3 bg-linear-to-r from-[#4CC9F0] to-[#4361EE] hover:opacity-95 text-white font-semibold text-sm rounded-xl shadow-lg shadow-[#4361EE]/20 transition-all cursor-pointer transform active:scale-95 whitespace-nowrap"
+            <h1 className="text-2xl lg:text-3xl font-black tracking-tight mt-1">Asset Control Center</h1>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative w-full md:w-72">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search asset..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-[#1C2541]/40 border border-[#3A506B]/50 rounded-xl text-slate-200 text-sm focus:outline-none"
+              />
+            </div>
+
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#4361EE] text-white font-semibold rounded-xl text-sm hover:opacity-90 transition-all cursor-pointer"
             >
-              <Plus size={18} />
-              Register Asset
+              <Plus size={16} /> Add Asset
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-4 py-2 bg-slate-900/60 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 rounded-xl text-slate-400 hover:text-rose-400 cursor-pointer transition-all duration-300 group shadow-md"
+            >
+              {/* Profile Image with subtle border */}
+              {photoURL ? (
+                <img
+                  src={photoURL}
+                  alt="Profile"
+                  className="w-8 h-8 rounded-full border border-slate-700 group-hover:border-rose-500/40 transition-colors"
+                />
+              ) : (
+                // Fallback if photo is not available
+                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-[#4CC9F0]">
+                  U
+                </div>
+              )}
+
+              <div className="flex flex-col text-left">
+                <span className="text-xs font-bold text-slate-300 group-hover:text-rose-300 transition-colors">Sign Out</span>
+                <span className="text-[10px] text-slate-500">Active Session</span>
+              </div>
+
+              <LogOut size={16} className="ml-1 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
             </button>
           </div>
+        </div>
 
-          {/* Quick Metrics Statistics Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-[#1C2541]/40 border border-[#3A506B]/20 rounded-2xl p-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Systems</p>
-                <h3 className="text-2xl font-black mt-1 text-slate-100">{totalAssets}</h3>
-              </div>
-              <div className="p-3 bg-[#0B132B] border border-[#3A506B]/40 text-slate-300 rounded-xl">
-                <Package size={20} />
-              </div>
-            </div>
-
-            <div className="bg-[#1C2541]/40 border border-[#3A506B]/20 rounded-2xl p-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Operational</p>
-                <h3 className="text-2xl font-black mt-1 text-emerald-400">{activeAssets}</h3>
-              </div>
-              <div className="p-3 bg-[#0B132B] border border-[#3A506B]/40 text-emerald-400 rounded-xl">
-                <ShieldCheck size={20} />
-              </div>
-            </div>
-
-            <div className="bg-[#1C2541]/40 border border-[#3A506B]/20 rounded-2xl p-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Maintenance</p>
-                <h3 className="text-2xl font-black mt-1 text-amber-400">{maintenanceAssets}</h3>
-              </div>
-              <div className="p-3 bg-[#0B132B] border border-[#3A506B]/40 text-amber-400 rounded-xl">
-                <Activity size={20} />
-              </div>
+        {/* Metrics Counters */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-[#1C2541]/20 border border-[#3A506B]/20 rounded-xl p-4 flex items-center gap-4">
+            <div className="p-3 bg-[#0B132B] text-[#4CC9F0] rounded-xl"><LayoutGrid size={18} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase">Total Registry</p>
+              <h3 className="text-xl font-bold">{totalCount} Assets</h3>
             </div>
           </div>
 
-          {/* Dynamic Handover Requests Section */}
-          {handoverRequests.length > 0 && (
-            <div className="bg-[#1C2541]/40 border border-[#3A506B]/40 p-6 rounded-2xl backdrop-blur-md">
-              <div className="flex items-center gap-2 mb-4 text-[#4CC9F0]">
-                <ClipboardList size={18} />
-                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
-                  Incoming Handover Workorders ({handoverRequests.length})
-                </h2>
-              </div>
-              <div className="space-y-4">
-                {handoverRequests.map((req) => (
-                  <div key={req.id} className="bg-[#0B132B]/60 border border-[#3A506B]/20 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                      <p className="text-sm font-bold text-slate-200">
-                        Technician <span className="text-[#4CC9F0]">{req.techName}</span> requests handover for <span className="text-[#4361EE]">{req.assetName}</span>
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        <span className="font-semibold text-slate-300">Est:</span> {req.estimatedTime} | 
-                        <span className="font-semibold text-slate-300 ml-2">Notes:</span> "{req.notes}"
-                      </p>
+          <div className="bg-[#1C2541]/20 border border-[#3A506B]/20 rounded-xl p-4 flex items-center gap-4">
+            <div className="p-3 bg-[#0B132B] text-amber-400 rounded-xl"><Wrench size={18} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase">Under Maintenance</p>
+              <h3 className="text-xl font-bold text-amber-400">{maintenanceCount}</h3>
+            </div>
+          </div>
+
+          <div className="bg-[#1C2541]/20 border border-[#3A506B]/20 rounded-xl p-4 flex items-center gap-4">
+            <div className="p-3 bg-[#0B132B] text-rose-400 rounded-xl"><AlertCircle size={18} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase">Fault Alerts</p>
+              <h3 className="text-xl font-bold text-rose-400">{faultCount}</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Handover Requests Display Area */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-[#4CC9F0] flex items-center gap-2">
+            <UserCheck size={16} /> Pending Handover Requests ({handoverRequests.length})
+          </h2>
+
+          {handoverRequests.length === 0 ? (
+            <div className="p-4 bg-[#1C2541]/10 border border-dashed border-[#3A506B]/30 rounded-2xl text-center text-xs text-slate-500">
+              No pending tech handover requests.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {handoverRequests.map((req) => (
+                <div key={req.id} className="bg-[#1C2541]/40 border border-amber-500/20 p-4 rounded-2xl flex flex-col justify-between gap-3">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-bold text-slate-100 text-sm">{req.assetName}</h4>
+                      <span className="text-[10px] font-mono text-slate-500">SN: {req.serialNumber}</span>
                     </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                      <button 
-                        onClick={() => handleApproveHandover(req)}
-                        className="flex-1 md:flex-none px-4 py-2 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-500 hover:text-white transition-all cursor-pointer whitespace-nowrap"
-                      >
-                        <Check size={14} /> Approve & Handover
-                      </button>
-                      <button 
-                        onClick={() => handleRejectHandover(req.id)}
-                        className="px-3 py-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl hover:bg-rose-500 hover:text-white transition-all cursor-pointer"
-                      >
-                        <X size={14} />
-                      </button>
+                    <p className="text-xs text-slate-400 mt-2">Requested By: <strong className="text-slate-200">{req.techName}</strong></p>
+                    <p className="text-xs text-slate-400">Est. Duration: <strong className="text-slate-200">{req.estimatedTime}</strong></p>
+                    <div className="bg-[#0B132B]/50 p-2 rounded-lg text-[11px] text-slate-300 italic mt-2">
+                      "{req.notes}"
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className="flex gap-2 border-t border-[#3A506B]/20 pt-3">
+                    <button
+                      onClick={() => handleApproveRequest(req)}
+                      className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Check size={12} /> Approve Handover
+                    </button>
+                    <button
+                      onClick={() => handleRejectRequest(req)}
+                      className="py-1.5 px-3 bg-rose-500/10 hover:bg-rose-500 hover:text-white border border-rose-500/20 text-rose-400 text-xs font-bold rounded-lg flex items-center justify-center cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-
-          {/* Asset Rendering Main Dashboard Section */}
-          <div>
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 size={16} className="text-[#4CC9F0]" />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Active Registries</h2>
-            </div>
-
-            {assets.length === 0 ? (
-              <div className="text-center py-20 border border-dashed border-[#3A506B]/30 rounded-2xl bg-[#1C2541]/10">
-                <p className="text-slate-400 text-sm">No assets discovered in the cluster system database.</p>
-                <button 
-                  onClick={() => setIsModalOpen(true)}
-                  className="mt-4 text-xs font-bold text-[#4CC9F0] hover:underline cursor-pointer"
-                >
-                  Create your first asset entry
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {assets.map((asset) => (
-                  <AdminAssetCard key={asset.id} asset={asset} />
-                ))}
-              </div>
-            )}
-          </div>
-
         </div>
+
+        {/* Registered Asset Grid */}
+        <div className="space-y-4 pt-4 border-t border-[#3A506B]/20">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Registered Asset Grid</h2>
+          {isLoading ? (
+            <LoadingSpinner message="Loading asset registry..." />
+          ) : filteredAssets.length === 0 ? (
+            <div className="text-center py-20 border border-dashed border-[#3A506B]/20 rounded-2xl bg-[#1C2541]/10">
+              <PackageOpen size={32} className="mx-auto text-slate-600 mb-3" />
+              <p className="text-slate-400 text-sm font-medium">No assets found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredAssets.map((asset) => (
+                <AdminAssetCard key={asset.id} asset={asset} />
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
 
-      {/* Modal Registry Entry Container Block */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          resetForm();
-        }}
-        title="Register New Asset"
-      >
-        <form onSubmit={handleRegisterAsset} className="space-y-5">
-          {/* Asset Name */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block" htmlFor="assetName">
-              Asset Name
-            </label>
-            <input
-              value={assetName}
-              onChange={(e) => setAssetName(e.target.value)}
-              type="text"
-              id="assetName"
-              placeholder="e.g. HVAC Unit 4, CNC Lathe"
-              className="w-full px-4 py-3 bg-[#0B132B]/80 border border-[#3A506B]/60 rounded-xl focus:outline-none focus:border-[#4CC9F0] transition-colors text-slate-200 placeholder-slate-600 text-sm"
-              required
-            />
-          </div>
-
-          {/* Asset Category */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block" htmlFor="assetCategory">
-              Category
-            </label>
-            <select
-              value={assetCategory}
-              onChange={(e) => setAssetCategory(e.target.value)}
-              id="assetCategory"
-              className="w-full px-4 py-3 bg-[#0B132B]/80 border border-[#3A506B]/60 rounded-xl focus:outline-none focus:border-[#4CC9F0] transition-colors text-slate-200 text-sm"
-            >
-              <option value="machinery" className="bg-[#0B132B]">Machinery & Equipment</option>
-              <option value="facilities" className="bg-[#0B132B]">Facilities & Building</option>
-              <option value="fleet" className="bg-[#0B132B]">Fleet & Vehicles</option>
-              <option value="it" className="bg-[#0B132B]">IT Infrastructure</option>
-            </select>
-          </div>
-
-          {/* Serial / Tag Number */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block" htmlFor="serialNumber">
-              Serial / Tag Number
-            </label>
-            <input
-              value={serialNumber}
-              onChange={(e) => setSerialNumber(e.target.value)}
-              type="text"
-              id="serialNumber"
-              placeholder="e.g. AQ-90823-X"
-              className="w-full px-4 py-3 bg-[#0B132B]/80 border border-[#3A506B]/60 rounded-xl focus:outline-none focus:border-[#4CC9F0] transition-colors text-slate-200 placeholder-slate-600 text-sm"
-            />
-          </div>
-
-          {/* Initial Operational Status */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block" htmlFor="assetStatus">
-              Initial Operational Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              id="assetStatus"
-              className="w-full px-4 py-3 bg-[#0B132B]/80 border border-[#3A506B]/60 rounded-xl focus:outline-none focus:border-[#4CC9F0] transition-colors text-slate-200 text-sm"
-            >
-              <option value="active" className="text-emerald-400 bg-[#0B132B]">Active / Functional</option>
-              <option value="maintenance" className="text-amber-400 bg-[#0B132B]">Under Maintenance</option>
-              <option value="inactive" className="text-rose-400 bg-[#0B132B]">Inactive / Offline</option>
-            </select>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block" htmlFor="description">
-              Description / Notes
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              id="description"
-              rows={3}
-              placeholder="e.g. Requires standard quarterly calibration inspections."
-              className="w-full px-4 py-3 bg-[#0B132B]/80 border border-[#3A506B]/60 rounded-xl focus:outline-none focus:border-[#4CC9F0] transition-colors text-slate-200 placeholder-slate-600 text-sm resize-none"
-            />
-          </div>
-
-          {/* Action Control Trigger Set */}
-          <div className="flex gap-3 pt-2">
+      {/* Simplified Inline Modal for Add Asset */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-[#1C2541] border border-[#3A506B]/50 rounded-2xl p-6 w-full max-w-md space-y-4 relative">
             <button
-              type="button"
-              onClick={() => {
-                setIsModalOpen(false);
-                resetForm();
-              }}
-              className="w-1/2 py-3 bg-transparent border border-[#3A506B]/60 text-slate-400 font-semibold rounded-xl hover:bg-[#1C2541]/40 transition-colors cursor-pointer text-sm"
+              onClick={() => { setIsAddModalOpen(false); setFormError(''); }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
             >
-              Cancel
+              <X size={18} />
             </button>
-            <button
-              type="submit"
-              className="w-1/2 py-3 bg-linear-to-r from-[#4CC9F0] to-[#4361EE] text-white font-semibold rounded-xl shadow-lg hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer text-sm"
-            >
-              Register Asset
-            </button>
+            <h3 className="text-lg font-bold text-slate-100">Register New Asset</h3>
+
+            <form onSubmit={handleAddAsset} className="space-y-4">
+              {formError && (
+                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs p-3 rounded-xl flex items-center gap-2">
+                  <AlertCircle size={14} /> <span>{formError}</span>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-400 uppercase">Asset Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Forklift Unit 4"
+                  value={newAsset.assetName}
+                  onChange={(e) => setNewAsset({ ...newAsset, assetName: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#0B132B] border border-[#3A506B]/60 rounded-xl text-slate-200 text-sm outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-400 uppercase">Category</label>
+                <select
+                  value={newAsset.assetCategory}
+                  onChange={(e) => setNewAsset({ ...newAsset, assetCategory: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#0B132B] border border-[#3A506B]/60 rounded-xl text-slate-200 text-sm outline-none"
+                >
+                  <option value="machinery">Machinery</option>
+                  <option value="facilities">Facilities</option>
+                  <option value="fleet">Fleet</option>
+                  <option value="it">IT</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-400 uppercase">Serial Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. SN-2049-A"
+                  value={newAsset.serialNumber}
+                  onChange={(e) => setNewAsset({ ...newAsset, serialNumber: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#0B132B] border border-[#3A506B]/60 rounded-xl text-slate-200 text-sm outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-400 uppercase">Description</label>
+                <textarea
+                  rows={2}
+                  placeholder="Short note..."
+                  value={newAsset.description}
+                  onChange={(e) => setNewAsset({ ...newAsset, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#0B132B] border border-[#3A506B]/60 rounded-xl text-slate-200 text-sm outline-none resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="w-full py-2.5 bg-[#4361EE] hover:bg-[#3b55d9] text-white font-semibold rounded-xl text-sm transition-all disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save Asset to Registry'}
+              </button>
+            </form>
           </div>
-        </form>
-      </Modal>
-    </>
+        </div>
+      )}
+    </div>
   );
 }
 
-export default Dashboard;
+export default AdminDashboard;

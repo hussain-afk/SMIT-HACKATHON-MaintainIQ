@@ -12,3 +12,21 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Simple fade-in animation used when switching tabs/panels */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Slow spin used for a couple of icons */
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spinSlow 2.5s linear infinite;
+}
