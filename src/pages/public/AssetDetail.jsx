@@ -225,7 +225,7 @@ function AssetDetail() {
                 </div>
                 <h3 className="text-sm font-bold text-slate-300">Section Locked</h3>
                 <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-                  Aap tab tak progress update nahi kar sakte jab tak Admin is asset ki handover request ko **Approve** na kar de.
+                  Progress cannot be updated until the asset handover request is approved by the Admin.
                 </p>
                 {asset?.status === 'pending_approval' && (
                   <span className="inline-block text-[10px] font-mono bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20">
