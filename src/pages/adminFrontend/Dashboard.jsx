@@ -2,8 +2,8 @@ import React, { useEffect, useState, useContext } from 'react';
 import { db, collection, getDocs, addDoc, signOut, auth, doc, updateDoc, deleteDoc } from '../../config/firebase';
 import AdminAssetCard from '../../components/adminCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { ShieldCheck, Search, LayoutGrid, Wrench, AlertCircle, LogOut, Plus, PackageOpen, UserCheck, Check, X, RotateCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, Search, LayoutGrid, Wrench, AlertCircle, LogOut, Plus, PackageOpen, UserCheck, Check, X, RotateCw, ArrowRight } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { StoreContext } from '../../context/Store';
 import Modal from '../../components/Modal';
 
@@ -187,10 +187,13 @@ function AdminDashboard() {
         {/* Top Header Panel */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#3A506B]/30 pb-6">
           <div>
-            <div className="flex items-center gap-2 text-[#4CC9F0]">
-              <ShieldCheck size={18} />
-              <span className="text-xs font-bold uppercase tracking-widest">Admin Portal</span>
+            <NavLink to={'/docs'} className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="flex items-center gap-2 text-[#4CC9F0]">
+              
+              <span className="text-xs font-bold uppercase tracking-widest">Asset Management Docs</span>
+              <ArrowRight size={14} className="text-[#4CC9F0] opacity-70" />
             </div>
+            </NavLink>
             <h1 className="text-2xl lg:text-3xl font-black tracking-tight mt-1">Asset Control Center</h1>
           </div>
 

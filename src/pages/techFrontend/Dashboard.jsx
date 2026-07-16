@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext, useCallback } from 'react'
 import { db, collection, getDocs, signOut, auth } from '../../config/firebase'
 import TechAssetCard from '../../components/TechAssetCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { Wrench, Search, LayoutGrid, CheckCircle2, AlertCircle, LogOut, RotateCw } from 'lucide-react';
+import { Wrench, Search, LayoutGrid, CheckCircle2, AlertCircle, LogOut, RotateCw, ArrowRight } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { StoreContext } from '../../context/Store';
 import Modal from '../../components/Modal';
@@ -12,7 +12,7 @@ function Dashboard() {
   const { setUser, photoURL } = useContext(StoreContext);
 
   // --- States ---
-  const [assets, setAssets] = useState([]); 
+  const [assets, setAssets] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false); // 🌟 New State for Button Feedback
@@ -26,7 +26,7 @@ function Dashboard() {
     try {
       const querySnapshot = await getDocs(collection(db, "assets"));
       const tempAssets = [];
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         // Firebase timestamp converter logic
@@ -84,10 +84,13 @@ function Dashboard() {
         {/* Top Header Panel */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 border-b border-slate-800/60 pb-6">
           <div>
-            <div className="flex items-center gap-2 text-[#4CC9F0] mb-1">
-              <Wrench size={18} className="animate-pulse" />
-              <span className="text-xs font-bold uppercase tracking-widest">Maintenance Portal</span>
-            </div>
+            <NavLink to={'/docs'} className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="flex items-center gap-2 text-[#4CC9F0] mb-1">
+                <Wrench size={18} className="animate-pulse" />
+                <span className="text-xs font-bold uppercase tracking-widest">Maintenance Portal Docs</span>
+                <ArrowRight size={18} className="animate-pulse" />
+              </div>
+            </NavLink>
             <h1 className="text-2xl lg:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400">
               Technician Operations Terminal
             </h1>
@@ -116,17 +119,16 @@ function Dashboard() {
               className="relative flex items-center justify-center p-3 bg-slate-900/60 hover:bg-slate-800/80 disabled:bg-slate-950/40 border border-slate-800 hover:border-slate-700/80 rounded-xl text-slate-300 hover:text-white cursor-pointer active:scale-95 disabled:pointer-events-none transition-all duration-200 group shadow-md"
               title="Sync Database"
             >
-              <RotateCw 
-                size={16} 
-                className={`text-[#4CC9F0] group-hover:text-white transition-colors ${
-                  isRefreshing ? 'animate-spin' : 'group-hover:rotate-45'
-                } transition-transform duration-300`} 
+              <RotateCw
+                size={16}
+                className={`text-[#4CC9F0] group-hover:text-white transition-colors ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-45'
+                  } transition-transform duration-300`}
               />
             </button>
 
             {/* Logout Button */}
-            <button 
-              onClick={handleLogout} 
+            <button
+              onClick={handleLogout}
               className="flex items-center gap-3 px-4 py-2 bg-slate-900/60 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 rounded-xl text-slate-400 hover:text-rose-400 cursor-pointer transition-all duration-300 group shadow-md"
             >
               {/* Profile Image with subtle border */}
