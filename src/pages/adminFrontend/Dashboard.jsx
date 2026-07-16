@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { ShieldCheck, Search, LayoutGrid, Wrench, AlertCircle, LogOut, Plus, PackageOpen, UserCheck, Check, X, RotateCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { StoreContext } from '../../context/Store';
+import Modal from '../../components/Modal';
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ function AdminDashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
 
   // New Asset Form State
   const [newAsset, setNewAsset] = useState({
@@ -62,7 +64,13 @@ function AdminDashboard() {
 
   useEffect(() => {
     loadData();
+    handleDocsModalOpen(); // Automatically open the docs modal on first load
   }, []);
+
+
+  function handleDocsModalOpen() {
+    setIsDocsModalOpen(true);
+  }
 
   // --- 2. Approve Handover ---
   const handleApproveRequest = async (request) => {
@@ -449,6 +457,20 @@ function AdminDashboard() {
           </div>
         </div>
       )}
+      <Modal
+        isOpen={isDocsModalOpen}
+        onClose={() => setIsDocsModalOpen(false)}
+        title="MaintainIQ Field Handbook"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Welcome to the MaintainIQ Field Handbook! This guide provides technicians and operators with essential workflows, safety protocols, and best practices for managing assets in the field. Please refer to this handbook whenever you need guidance on asset handling, maintenance procedures, or reporting issues.
+          </p>
+          <p className="text-sm text-slate-300">
+            For detailed instructions, diagrams, and troubleshooting tips, please visit our online documentation at <a href="/docs" className="text-[#4CC9F0] underline">MaintainIQ Docs</a>.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

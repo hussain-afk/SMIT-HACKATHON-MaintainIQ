@@ -3,8 +3,9 @@ import { db, collection, getDocs, signOut, auth } from '../../config/firebase'
 import TechAssetCard from '../../components/TechAssetCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { Wrench, Search, LayoutGrid, CheckCircle2, AlertCircle, LogOut, RotateCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { StoreContext } from '../../context/Store';
+import Modal from '../../components/Modal';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false); // 🌟 New State for Button Feedback
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false); // State for Docs Modal
 
   // --- 1. Modular Load Assets Logic (Extracted for reuse) ---
   const loadAssets = useCallback(async (showFullLoader = true) => {
@@ -48,6 +50,13 @@ function Dashboard() {
   useEffect(() => {
     loadAssets(true);
   }, [loadAssets]);
+
+  function handleDocsModalOpen() {
+    setIsDocsModalOpen(true);
+  }
+  useEffect(() => {
+    handleDocsModalOpen(); // Automatically open the docs modal on first load
+  }, []);
 
   // --- 2. Logout Function ---
   const handleLogout = async () => {
@@ -199,6 +208,20 @@ function Dashboard() {
         </div>
 
       </div>
+      <Modal
+        isOpen={isDocsModalOpen}
+        onClose={() => setIsDocsModalOpen(false)}
+        title="MaintainIQ Field Handbook"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Welcome to the MaintainIQ Field Handbook! This guide provides technicians and operators with essential workflows, safety protocols, and best practices for managing assets in the field. Please refer to this handbook whenever you need guidance on asset handling, maintenance procedures, or reporting issues.
+          </p>
+          <p className="text-sm text-slate-300">
+            For detailed instructions, diagrams, and troubleshooting tips, please visit our online documentation at <NavLink to="/docs" className="text-[#4CC9F0] underline">MaintainIQ Docs</NavLink>.
+          </p>
+        </div>
+      </Modal>
     </div>
   )
 }
