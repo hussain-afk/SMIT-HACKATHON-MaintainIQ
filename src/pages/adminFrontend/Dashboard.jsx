@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext } from 'react';
 import { db, collection, getDocs, addDoc, signOut, auth, doc, updateDoc, deleteDoc } from '../../config/firebase';
 import AdminAssetCard from '../../components/adminCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { ShieldCheck, Search, LayoutGrid, Wrench, AlertCircle, LogOut, Plus, PackageOpen, UserCheck, Check, X } from 'lucide-react';
+import { ShieldCheck, Search, LayoutGrid, Wrench, AlertCircle, LogOut, Plus, PackageOpen, UserCheck, Check, X, RotateCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { StoreContext } from '../../context/Store';
 
@@ -150,6 +150,17 @@ function AdminDashboard() {
     navigate('/');
   };
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadData();
+    } finally {
+      // Adding a tiny delay so the spin animation feels satisfying to the user
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
+
   // --- Search & Metrics Calculations ---
   const filteredAssets = assets.filter(asset =>
     asset.assetName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -174,6 +185,7 @@ function AdminDashboard() {
             </div>
             <h1 className="text-2xl lg:text-3xl font-black tracking-tight mt-1">Asset Control Center</h1>
           </div>
+
 
           <div className="flex items-center gap-3">
             <div className="relative w-full md:w-72">
@@ -251,10 +263,54 @@ function AdminDashboard() {
 
         {/* Handover Requests Display Area */}
         <div className="space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#4CC9F0] flex items-center gap-2">
-            <UserCheck size={16} /> Pending Handover Requests ({handoverRequests.length})
-          </h2>
 
+          {/* request handler and refresh button  */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-slate-800/60 mb-6">
+
+            {/* Left Side: Title & Dynamic Pulse Badge */}
+            <div className="flex items-center gap-3">
+              {/* Icon Wrapper with subtle background glow */}
+              <div className="p-2.5 bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 text-[#4CC9F0] rounded-xl shadow-[0_0_15px_rgba(76,201,240,0.05)]">
+                <UserCheck size={18} className="animate-pulse" />
+              </div>
+
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-black uppercase tracking-wider text-slate-100">
+                    Pending Handover Requests
+                  </h2>
+                  {/* Pulsing Count Indicator */}
+                  {handoverRequests.length > 0 && (
+                    <span className="relative flex h-5 px-2 items-center justify-center rounded-full bg-gradient-to-r from-[#4CC9F0] to-[#4361EE] text-[10px] font-black text-white shadow-[0_0_10px_rgba(76,201,240,0.3)]">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-[#4CC9F0] opacity-40 animate-ping" />
+                      <span className="relative">{handoverRequests.length}</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
+                  Needs Immediate Authorization
+                </p>
+              </div>
+            </div>
+
+            {/* Right Side: Interactive Glass Refresh Button */}
+            <div className="self-end sm:self-auto">
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="relative flex items-center gap-2 px-4 py-2.5 bg-slate-900/60 hover:bg-slate-800/80 disabled:bg-slate-950/40 border border-slate-800 hover:border-slate-700/80 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-300 hover:text-white cursor-pointer active:scale-95 disabled:pointer-events-none transition-all duration-200 group shadow-lg"
+              >
+                <RotateCw
+                  size={14}
+                  className={`text-[#4CC9F0] group-hover:text-white transition-colors ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-45'
+                    } transition-transform duration-300`}
+                />
+                <span>{isRefreshing ? 'Syncing...' : 'Refresh All Data'}</span>
+              </button>
+            </div>
+
+          </div>
+          {/* request handler and refresh button  +++++++== end ===++++++  */}
           {handoverRequests.length === 0 ? (
             <div className="p-4 bg-[#1C2541]/10 border border-dashed border-[#3A506B]/30 rounded-2xl text-center text-xs text-slate-500">
               No pending tech handover requests.

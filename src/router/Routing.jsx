@@ -4,6 +4,7 @@ import AuthPage from "../pages/AuthPage";
 import AdminDashboard from "../pages/adminFrontend/Dashboard";
 import TechDashboard from "../pages/techFrontend/Dashboard";
 import AssetDetail from "../pages/public/AssetDetail";
+import Docs from "../pages/docs/Docs";
 import { StoreContext } from "../context/Store";
 import LoadingSpinner from "../components/LoadingSpinner";
 
@@ -29,6 +30,7 @@ function Routing() {
          <Route path="/admin/dashboard" element={user && isAdmin ? <AdminDashboard /> : <Navigate to="/" />} />
          <Route path="/tech/dashboard" element={user && !isAdmin ? <TechDashboard /> : <Navigate to="/" />} />
          <Route path="/tech/asset/:id" element={<AssetDetail />} />
+         <Route path="/docs" element={<Docs />} />
       </Routes>
    );
 }
