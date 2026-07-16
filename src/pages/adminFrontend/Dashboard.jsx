@@ -130,7 +130,7 @@ function AdminDashboard() {
     try {
       const payload = {
         ...newAsset,
-        status: 'active',
+        status: 'opentowork', // Default status for new assets
         notes: '',
         createdAt: new Date().toISOString(),
       };

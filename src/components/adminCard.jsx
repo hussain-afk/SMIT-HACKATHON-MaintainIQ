@@ -13,7 +13,7 @@ import Modal from './Modal';
 // Admins can: VIEW status (read-only - only technicians change it out in
 // the field), delete the asset, and view/print its QR code.
 function AdminAssetCard({ asset }) {
-  const { id, assetName, assetCategory, serialNumber, createdAt, status = 'active', description, notes } = asset;
+  const { id, assetName, assetCategory, serialNumber, createdAt, status = 'opentowork', description, notes } = asset;
   const dispatch = useDispatch();
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -26,6 +26,14 @@ function AdminAssetCard({ asset }) {
   // both the accent bar and the status banner, so they can never disagree.
   const getStatusMeta = (currentStatus) => {
     switch (currentStatus?.toLowerCase()) {
+      case 'opentowork':
+        return {
+          label: 'Open to Work',
+          subLabel: 'Available for Assignment',
+          accent: 'bg-blue-400',
+          classes: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
+          icon: <Hammer size={16} className="text-blue-400" />,
+        };
       case 'active':
         return {
           label: 'Active / Functional',

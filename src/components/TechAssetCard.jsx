@@ -10,7 +10,7 @@ function TechAssetCard({ asset }) {
   // console.log('Rendering TechAssetCard for asset:', asset);
 
 
-  const { assetName, assetCategory, serialNumber, status = 'active', id } = asset;
+  const { assetName, assetCategory, serialNumber, status = 'opentowork', id } = asset;
 
   const assetUrl = `${window.location.origin}/tech/asset/${id}`;
   // console.log('Asset URL:', assetUrl);
@@ -46,6 +46,14 @@ function TechAssetCard({ asset }) {
           icon: <CheckCircle size={12} className="text-emerald-400" />,
           text: 'Ready for Use',
         };
+      case 'opentowork':
+        return {
+          accent: 'bg-blue-400',
+          bg: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+          icon: <Hammer size={12} className="text-blue-400" />,
+          text: 'Open to Work',
+      }
+      case 'pending_approval':
       case 'maintenance':
         return {
           accent: 'bg-amber-400',
